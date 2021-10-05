@@ -1,0 +1,41 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31702.278
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ViveTrackerCsharp", "ViveTrackerCsharp\ViveTrackerCsharp.csproj", "{D50677AA-CDB0-488E-854C-D7D1B3504660}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ViveTrackHurel", "ViveTrackHurel\ViveTrackHurel.csproj", "{15CAC944-D73E-407A-9B91-143446517209}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D50677AA-CDB0-488E-854C-D7D1B3504660}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D50677AA-CDB0-488E-854C-D7D1B3504660}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D50677AA-CDB0-488E-854C-D7D1B3504660}.Debug|x64.ActiveCfg = Debug|x64
+		{D50677AA-CDB0-488E-854C-D7D1B3504660}.Debug|x64.Build.0 = Debug|x64
+		{D50677AA-CDB0-488E-854C-D7D1B3504660}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D50677AA-CDB0-488E-854C-D7D1B3504660}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D50677AA-CDB0-488E-854C-D7D1B3504660}.Release|x64.ActiveCfg = Release|x64
+		{D50677AA-CDB0-488E-854C-D7D1B3504660}.Release|x64.Build.0 = Release|x64
+		{15CAC944-D73E-407A-9B91-143446517209}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{15CAC944-D73E-407A-9B91-143446517209}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{15CAC944-D73E-407A-9B91-143446517209}.Debug|x64.ActiveCfg = Debug|x64
+		{15CAC944-D73E-407A-9B91-143446517209}.Debug|x64.Build.0 = Debug|x64
+		{15CAC944-D73E-407A-9B91-143446517209}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{15CAC944-D73E-407A-9B91-143446517209}.Release|Any CPU.Build.0 = Release|Any CPU
+		{15CAC944-D73E-407A-9B91-143446517209}.Release|x64.ActiveCfg = Release|x64
+		{15CAC944-D73E-407A-9B91-143446517209}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BBD95CBC-1C87-41EA-B01F-FAAC71C014C3}
+	EndGlobalSection
+EndGlobal
