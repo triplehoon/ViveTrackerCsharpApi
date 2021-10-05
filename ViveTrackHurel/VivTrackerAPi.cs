@@ -26,14 +26,14 @@ namespace Hurel.PG.Positioning
             EVRInitError error = EVRInitError.Unknown;
             OpenVR.Init(ref error);
             WriteLine($"OpenVR Init ({error})");
-
+            TrackerIndex.Clear();
+            TrackingRefIndex.Clear();
             if (error != EVRInitError.None)
             {
                 return;
             }
 
-            TrackerIndex.Clear();
-            TrackingRefIndex.Clear();
+        
             for (uint i = 0; i < OpenVR.k_unMaxTrackedDeviceCount; ++i)
             {
                 var device = OpenVR.System.GetTrackedDeviceClass(i);
@@ -76,10 +76,9 @@ namespace Hurel.PG.Positioning
             }
             else
             {
-                WriteLine($"ViveTrackerApi: Tracker is found!!! Index: {TrackerIndex.Count}.");
+                WriteLine($"ViveTrackerApi: Tracker is found!!! {TrackerIndex.Count}.");
             }
         }
-
         
         public void GetPosesAndWrite()
         {
@@ -91,7 +90,7 @@ namespace Hurel.PG.Positioning
             }
             TrackedDevicePose_t[] trackedDevicePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
             TrackedDevicePose_t[] trackedGamePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
-            int iterationCount = 10;
+            int iterationCount = 1;
             WriteLine("--------------------------TRACKER------------------------------------------");
             foreach (var tracker in TrackerIndex)
             {
@@ -174,7 +173,7 @@ namespace Hurel.PG.Positioning
             WriteLine("--------------------------END----------------------------------------------");
 
             
-            int rightDown = 15;           
+               
             Console.SetCursorPosition(0, Console.CursorTop - 15);          
         }
 
@@ -188,7 +187,7 @@ namespace Hurel.PG.Positioning
             }
             TrackedDevicePose_t[] trackedDevicePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
             TrackedDevicePose_t[] trackedGamePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
-            int iterationCount = 100;
+            int iterationCount = 1;
             WriteLine("--------------------------TRACKER------------------------------------------");
             foreach (var tracker in TrackerIndex)
             {
@@ -225,7 +224,7 @@ namespace Hurel.PG.Positioning
                     v += GetPosition(m);
                 }
                 v /= iterationCount;
-                WriteLine($"{v.X * 1000:f1}, {v.Y * 1000:f1}, {v.Z * 1000:f1} [mm], {tracker.Serial}: {tResult} ({valid}, {connected})       ");
+                WriteLine($"{v.X * 1000:+0000.0;-0000.0;+0000.0}, {v.Y * 1000:+0000.0;-0000.0;+0000.0}, {v.Z * 1000:+0000.0;-0000.0;+0000.0} [mm], {tracker.Serial}: {tResult} ({valid}, {connected})       ");
                 WriteLine("------------------------------------------------------------------------");
 
             }
@@ -265,7 +264,7 @@ namespace Hurel.PG.Positioning
                     v += GetPosition(m);
                 }
                 v /= iterationCount;
-                WriteLine($"{v.X * 1000:f1}, {v.Y * 1000:f1}, {v.Z * 1000:f1} [mm], {tracker.Serial}: {tResult} ({valid}, {connected})     ");
+                WriteLine($"{v.X * 1000:+0000.0;-0000.0;+0000.0}, {v.Y * 1000:+0000.0;-0000.0;+0000.0}, {v.Z * 1000:+0000.0;-0000.0;+0000.0} [mm], {tracker.Serial}: {tResult} ({valid}, {connected})     ");
                 WriteLine("------------------------------------------------------------------------");
 
             }
@@ -297,11 +296,11 @@ namespace Hurel.PG.Positioning
             {
                 //update Pose
                 HmdMatrix34_t pose = trackedDevicePose_T[index].mDeviceToAbsoluteTracking;
-                Matrix4x4 Td = GetMatrix4x4FromHmdMatrix(pose);
-                Matrix4x4 T0 = Matrix4x4.CreateTranslation(deviceTruePos);
-                Matrix4x4 TdI = Matrix4x4.Identity;
-                Matrix4x4.Invert(Td, out TdI);
-                GlobalTransformation = T0 * TdI;
+                Matrix4x4 T0 = GetMatrix4x4FromHmdMatrix(pose);
+                Matrix4x4 T1 = Matrix4x4.CreateTranslation(deviceTruePos);
+                Matrix4x4 T0I = Matrix4x4.Identity;
+                Matrix4x4.Invert(T0, out T0I);
+                GlobalTransformation = T1 * T0I;
 
                 return true;
             }
@@ -373,17 +372,17 @@ namespace Hurel.PG.Positioning
                 for (int j = 0; j < devices.Count; ++j)
                 {
                     uint index = devices[j].Index;
-
-                    bool tResult = trackedDevicePose_T[index].bPoseIsValid;
-                    if (tResult)
-                    {
-                        //update Pose
-                        HmdMatrix34_t pose = trackedDevicePose_T[index].mDeviceToAbsoluteTracking;
-                        Matrix4x4 m = GetMatrix4x4FromHmdMatrix(pose);
-                        m = GlobalTransformation * m;
-                        pos[j] = (pos[j] * j + GetPosition(m)) / (j + 1);
-                    }                    
-                }                
+                    //update Pose
+                    HmdMatrix34_t pose = trackedDevicePose_T[index].mDeviceToAbsoluteTracking;
+                    Matrix4x4 m = GetMatrix4x4FromHmdMatrix(pose);
+                    m = GlobalTransformation * m;
+                    //pos[j] = (pos[j] * i + GetPosition(m)) / (i + 1);
+                    pos[j] += GetPosition(m);
+                }
+            }
+            for (int j = 0; j < devices.Count; ++j)
+            {
+                pos[j] /= iterationNum;
             }
 
             return pos;
