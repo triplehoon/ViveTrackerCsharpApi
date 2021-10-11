@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Text;
 using Valve.VR;
 
+
 namespace Hurel.PG.Positioning
 {
     public class ViveTrackerApi
@@ -20,7 +21,7 @@ namespace Hurel.PG.Positioning
             Initiate();
         }
 
-        public void Initiate()
+        public bool Initiate()
         {
             OpenVR.Shutdown();
             EVRInitError error = EVRInitError.Unknown;
@@ -30,7 +31,7 @@ namespace Hurel.PG.Positioning
             TrackingRefIndex.Clear();
             if (error != EVRInitError.None)
             {
-                return;
+                return false;
             }
 
         
@@ -73,10 +74,12 @@ namespace Hurel.PG.Positioning
             if (TrackerIndex.Count == 0)
             {
                 WriteLine($"ViveTrackerApi: Tracker is not Found");
+                return false;
             }
             else
             {
                 WriteLine($"ViveTrackerApi: Tracker is found!!! {TrackerIndex.Count}.");
+                return true;
             }
         }
         
@@ -91,6 +94,7 @@ namespace Hurel.PG.Positioning
             TrackedDevicePose_t[] trackedDevicePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
             TrackedDevicePose_t[] trackedGamePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
             int iterationCount = 1;
+
             WriteLine("--------------------------TRACKER------------------------------------------");
             foreach (var tracker in TrackerIndex)
             {
@@ -172,9 +176,9 @@ namespace Hurel.PG.Positioning
 
             WriteLine("--------------------------END----------------------------------------------");
 
-            
-               
-            Console.SetCursorPosition(0, Console.CursorTop - 15);          
+            Console.SetCursorPosition(0, Console.CursorTop - (2 * TrackerIndex.Count + 2 * TrackingRefIndex.Count + 3));
+
+
         }
 
         public void GetTransPosesAndWrite()
@@ -188,6 +192,7 @@ namespace Hurel.PG.Positioning
             TrackedDevicePose_t[] trackedDevicePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
             TrackedDevicePose_t[] trackedGamePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
             int iterationCount = 1;
+
             WriteLine("--------------------------TRACKER------------------------------------------");
             foreach (var tracker in TrackerIndex)
             {
@@ -271,9 +276,8 @@ namespace Hurel.PG.Positioning
 
             WriteLine("--------------------------END----------------------------------------------");
 
+            Console.SetCursorPosition(0, Console.CursorTop - (2 * TrackerIndex.Count + 2 * TrackingRefIndex.Count + 3));
 
-            int rightDown = 15;
-            Console.SetCursorPosition(0, Console.CursorTop - 15);
         }
 
         private Matrix4x4 GlobalTransformation = Matrix4x4.Identity;
@@ -387,9 +391,65 @@ namespace Hurel.PG.Positioning
 
             return pos;
         }
-        
 
-        
+
+        public List<Matrix4x4> GetTransformedMatrix(List<TrackedDevice> devices)
+        {
+            List<Matrix4x4> pos = new List<Matrix4x4>(devices.Count);
+            for (int i = 0; i < devices.Count; ++i)
+            {
+                pos.Add(Matrix4x4.Identity);
+            }
+
+            foreach (var dev in devices)
+            {
+                bool isDevExist = false;
+
+                foreach (var tracker in TrackerIndex)
+                {
+                    if (tracker == dev)
+                    {
+                        isDevExist = true;
+                    }
+                }
+                foreach (var tracker in TrackingRefIndex)
+                {
+                    if (tracker == dev)
+                    {
+                        isDevExist = true;
+                    }
+                }
+
+                if (!isDevExist)
+                {
+                    return pos;
+                }
+            }
+
+            TrackedDevicePose_t[] trackedDevicePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
+            TrackedDevicePose_t[] trackedGamePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
+
+
+            OpenVR.Compositor.WaitGetPoses(trackedDevicePose_T, trackedGamePose_T);
+
+            for (int j = 0; j < devices.Count; ++j)
+            {
+                uint index = devices[j].Index;
+                //update Pose
+                HmdMatrix34_t pose = trackedDevicePose_T[index].mDeviceToAbsoluteTracking;
+                Matrix4x4 m = GetMatrix4x4FromHmdMatrix(pose);
+                //pos[j] = (pos[j] * i + GetPosition(m)) / (i + 1);
+                pos[j] += GlobalTransformation * m;             
+                
+            }
+
+            
+
+
+            return pos;
+        }
+
+
         private static Matrix4x4  GetMatrix4x4FromHmdMatrix(HmdMatrix34_t pose)
         {
             Matrix4x4 m = Matrix4x4.Identity;
@@ -409,10 +469,47 @@ namespace Hurel.PG.Positioning
 
             return m;
         }
-        private static Vector3 GetPosition(Matrix4x4 m)
+        public static Vector3 GetPosition(Matrix4x4 m)
         {
             return new Vector3(m.M14, m.M24, m.M34);
+        }        
+        public static Vector3 GetEulerXYZ(Quaternion q)
+        {
+            float sqw = q.W * q.W;
+            float sqx = q.X * q.X;
+            float sqy = q.Y * q.Y;
+            float sqz = q.Z * q.Z;
+
+            
+            float x = (float)Math.Asin(2f * (q.X * q.Z - q.W * q.Y));                             // Pitch 
+            float y = (float)Math.Atan2(2f * q.X * q.W + 2f * q.Y * q.Z, 1 - 2f * (sqz + sqw));     // Yaw 
+            float z = (float)Math.Atan2(2f * q.X * q.Y + 2f * q.Z * q.W, 1 - 2f * (sqy + sqz));      // Roll 
+
+            return new Vector3(x, y, z);
         }
+        public static Vector3 GetEulerXYZ(Matrix4x4 m)
+        {
+            Quaternion q = new Quaternion();
+            Vector3 a;
+            Vector3 b;
+
+            if (!Matrix4x4.Decompose(m, out a, out q, out b))
+            {
+                Console.WriteLine("Decompose fail");
+            }
+            float sqw = q.W * q.W;
+            float sqx = q.X * q.X;
+            float sqy = q.Y * q.Y;
+            float sqz = q.Z * q.Z;
+
+
+            float x = (float)Math.Asin(2f * (q.X * q.Z - q.W * q.Y));                             // Pitch 
+            float y = (float)Math.Atan2(2f * q.X * q.W + 2f * q.Y * q.Z, 1 - 2f * (sqz + sqw));     // Yaw 
+            float z = (float)Math.Atan2(2f * q.X * q.Y + 2f * q.Z * q.W, 1 - 2f * (sqy + sqz));      // Roll 
+
+            return new Vector3(x, y, z);
+        }
+
         private List<TrackedDevice> TrackerIndex = new List<TrackedDevice>();
         private List<TrackedDevice> TrackingRefIndex = new List<TrackedDevice>();
 
@@ -427,10 +524,6 @@ namespace Hurel.PG.Positioning
                 
         
         public record TrackedDevice(uint Index, string Serial);       
-
-
-
-
 
         private static void WriteLine(string msg)
         {
