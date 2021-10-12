@@ -5,6 +5,7 @@ using MathNet.Numerics.LinearAlgebra;
 using System.Text;
 using Valve.VR;
 
+
 namespace Hurel.PG.Positioning
 {
     public class ViveTrackerApi
@@ -99,6 +100,7 @@ namespace Hurel.PG.Positioning
             TrackedDevicePose_t[] trackedDevicePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
             TrackedDevicePose_t[] trackedGamePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
             int iterationCount = 1;
+
             WriteLine("--------------------------TRACKER------------------------------------------");
             foreach (var tracker in TrackerIndex)
             {
@@ -283,6 +285,7 @@ namespace Hurel.PG.Positioning
 
             WriteLine("--------------------------END----------------------------------------------");
 
+            Console.SetCursorPosition(0, Console.CursorTop - (2 * TrackerIndex.Count + 2 * TrackingRefIndex.Count + 3));
 
             int rightDown = 15;
             Console.SetCursorPosition(0, Console.CursorTop - 2*  TrackerIndex.Count - 2 * TrackingRefIndex.Count - 3);
@@ -541,7 +544,7 @@ namespace Hurel.PG.Positioning
 
             return m;
         }
-        private static Vector3 GetPosition(Matrix4x4 m)
+        public static Vector3 GetPosition(Matrix4x4 m)
         {
             return m.Translation;
         }
@@ -559,10 +562,6 @@ namespace Hurel.PG.Positioning
                 
         
         public record TrackedDevice(uint Index, string Serial);       
-
-
-
-
 
         private static void WriteLine(string msg)
         {
