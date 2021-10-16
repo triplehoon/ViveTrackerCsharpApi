@@ -91,14 +91,12 @@ namespace Hurel.PG.Multislit
             {
                 return new Matrix4x4[0];
             }
-            Matrix4x4 T1 = Matrix4x4.CreateFromYawPitchRoll(0, 90 * MathF.PI / 180, 90 * MathF.PI / 180);
-            Matrix4x4 T2 = Matrix4x4.CreateFromYawPitchRoll(-90 * MathF.PI / 180, 0, 180 * MathF.PI / 180);
-            Matrix4x4 T3 = Matrix4x4.CreateFromYawPitchRoll(0, 90 * MathF.PI / 180, -90 * MathF.PI / 180);
-            float width = 0.246f;
+           float width = 0.246f;
             float height = 0.12f;
-            Matrix4x4 OtoT1 = T1 * Matrix4x4.CreateTranslation(0, -width / 2, 0);
-            Matrix4x4 OtoT2 = T2 * Matrix4x4.CreateTranslation(0, 0, height);
-            Matrix4x4 OtoT3 = T3 * Matrix4x4.CreateTranslation(0, +width / 2, 0);
+            Matrix4x4 OtoT1 = Matrix4x4.CreateWorld(new Vector3(0, -width / 2, 0), new Vector3(0, -1, 0), new Vector3(1, 0, 0));
+            Matrix4x4 OtoT2 = Matrix4x4.CreateWorld(new Vector3(0, 0, height), new Vector3(0, 0, 1), new Vector3(1, 0, 0));
+            Matrix4x4 OtoT3 = Matrix4x4.CreateWorld(new Vector3(0, width / 2, 0), new Vector3(0, 1, 0), new Vector3(1, 0, 0));
+
 
             Matrix4x4 Tdevice1;
             Matrix4x4 Tdevice2;
@@ -111,10 +109,11 @@ namespace Hurel.PG.Multislit
             Matrix4x4[] returnMList = new Matrix4x4[iterationCount * 3];
             for (int i = 0; i < iterationCount; ++i)
             {
-                returnMList[i + 0] = mList[0][i] * Tdevice1;
-                returnMList[i + 1] = mList[1][i] * Tdevice2;
-                returnMList[i + 2] = mList[2][i] * Tdevice3;
+                returnMList[3 * i + 0] = Tdevice1 * mList[0][i];
+                returnMList[3 * i + 1] = Tdevice2 * mList[1][i];
+                returnMList[3 * i + 2] = Tdevice3 * mList[2][i];
             }
+
 
             return returnMList;
         }

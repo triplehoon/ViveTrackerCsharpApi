@@ -8,6 +8,8 @@
   <ItemGroup>
     <PackageReference Include="Aardvark.Application.OpenVR" Version="5.1.16" />
     <PackageReference Include="MathNet.Numerics" Version="4.15.0" />
+    <PackageReference Include="VMath" Version="1.0.3" />
+    <PackageReference Include="VVVV.Utils" Version="39.0.0" />
   </ItemGroup>
 
 </Project>

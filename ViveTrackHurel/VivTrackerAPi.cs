@@ -4,7 +4,7 @@ using System.Diagnostics;
 using MathNet.Numerics.LinearAlgebra;
 using System.Text;
 using Valve.VR;
-
+using System.Numerics;
 
 namespace Hurel.PG.Positioning
 {
@@ -287,41 +287,75 @@ namespace Hurel.PG.Positioning
 
             Console.SetCursorPosition(0, Console.CursorTop - (2 * TrackerIndex.Count + 2 * TrackingRefIndex.Count + 3));
 
-            int rightDown = 15;
             Console.SetCursorPosition(0, Console.CursorTop - 2*  TrackerIndex.Count - 2 * TrackingRefIndex.Count - 3);
         }
 
-        private Matrix<float> GlobalTransformation = Matrix<float>.Build.DenseIdentity(4);
+        private Matrix4x4 GlobalTransformation = Matrix4x4.Identity;
 
         public bool SetGlobalTransformation(TrackedDevice device, Vector3 deviceTruePos)
         {
             TrackedDevicePose_t[] trackedDevicePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
             TrackedDevicePose_t[] trackedGamePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
 
+            Vector3 meanPos = Vector3.Zero;
+            Vector3 meanROT = Vector3.Zero;
 
-            OpenVR.Compositor.WaitGetPoses(trackedDevicePose_T, trackedGamePose_T);
+            int iteratoinCount = 100;
 
-
-            uint index = device.Index;
-
-            bool tResult = trackedDevicePose_T[index].bPoseIsValid;
-            if (tResult)
+            for (int i = 0; i < iteratoinCount; ++i)
             {
-                //update Pose
-                HmdMatrix34_t pose = trackedDevicePose_T[index].mDeviceToAbsoluteTracking;
-                Matrix4x4 T0 = GetMatrix4x4FromHmdMatrix(pose);
-                Matrix4x4 T1 = Matrix4x4.CreateTranslation(deviceTruePos);
-                Matrix4x4 T0I = Matrix4x4.Identity;
-                Matrix4x4.Invert(T0, out T0I);
-                GlobalTransformation = T1 * T0I;
 
-                return true;
+
+                OpenVR.Compositor.WaitGetPoses(trackedDevicePose_T, trackedGamePose_T);
+
+
+                uint index = device.Index;
+
+                bool tResult = trackedDevicePose_T[index].bPoseIsValid;
+                if (tResult)
+                {
+                    //update Pose
+                    HmdMatrix34_t pose = trackedDevicePose_T[index].mDeviceToAbsoluteTracking;
+                    Matrix4x4 T0 = GetMatrix4x4FromHmdMatrix(pose);
+                    Matrix4x4 T1 = Matrix4x4.CreateTranslation(deviceTruePos);
+                    Matrix4x4 T0I = Matrix4x4.Identity;
+                    Matrix4x4.Invert(T0, out T0I);
+
+                    var m = T1 * T0I;
+                    Vector3 pos = m.Translation;
+                    Vector3 rot = new Vector3(MathF.Atan2(m.M32, m.M33) * 180 / MathF.PI, MathF.Atan2(m.M21, m.M11) * 180 / MathF.PI, MathF.Atan2(-m.M31, MathF.Sqrt(m.M32 * m.M32 + m.M33 * m.M33)) * 180 / MathF.PI);
+                    //Console.WriteLine($"{v.X * 1000:+0000.00;-0000.00;+0000.00}, {v.Y * 1000:+0000.00;-0000.00;+0000.00}, {v.Z * 1000:+0000.00;-0000.00;+0000.00} [mm], yaw: {r.Y:+000.00;-000.00;+000.00}, pitch: {r.Z:+000.00;-000.00;+000.00} roll: {r.X:+000.00;-000.00;+000.00}");
+
+
+                    meanPos += pos;
+                    meanROT += rot;
+                }
+                else
+                {
+                    --iteratoinCount;
+                }
+               
             }
-            else
+            if (iteratoinCount == 0)
             {
-                return false;
+                WriteLine("Global Transformaiton failed");
             }
+            meanPos = meanPos / (iteratoinCount);
+            meanROT = meanROT / (iteratoinCount);
+            {
+                Vector3 v = meanPos;
+                Vector3 r = meanROT;
+                Matrix4x4 Md = PosAndTrueYawPitchRoll(v, r);
+                GlobalTransformation = Md;
+
+            }
+            WriteLine($"Global Transformaiton success i count: {iteratoinCount}");
+
+            return true;
         }
+
+
+
         public bool SetGlobalTransformation(TrackedDevice device, Matrix4x4 deviceTruePos)
         {
             TrackedDevicePose_t[] trackedDevicePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
@@ -330,47 +364,65 @@ namespace Hurel.PG.Positioning
 
             OpenVR.Compositor.WaitGetPoses(trackedDevicePose_T, trackedGamePose_T);
 
+            Vector3 meanPos = Vector3.Zero;
+            Vector3 meanROT = Vector3.Zero;
 
-            uint index = device.Index;
+            int iteratoinCount = 300;
 
-            bool tResult = trackedDevicePose_T[index].bPoseIsValid;
 
-            for (int i = 0; i < 20; ++i)
+
+            for (int i = 0; i < iteratoinCount; ++i)
             {
+
+
+                OpenVR.Compositor.WaitGetPoses(trackedDevicePose_T, trackedGamePose_T);
+
+
+                uint index = device.Index;
+
+                bool tResult = trackedDevicePose_T[index].bPoseIsValid;
                 if (tResult)
                 {
-                    break;
-                }
-                tResult = trackedDevicePose_T[index].bPoseIsValid;
-                WriteLine($"Try SetGlobalTransformation valid ({i})");
-            }
-            if (tResult)
-            {
-                //update Pose
-                HmdMatrix34_t pose = trackedDevicePose_T[index].mDeviceToAbsoluteTracking;
-                Matrix4x4 T0 = GetMatrix4x4FromHmdMatrix(pose);
-                Matrix4x4 T1 = deviceTruePos;
-                Matrix4x4 T0I;
-                Matrix4x4 T1I;
+                    //update Pose
+                    HmdMatrix34_t pose = trackedDevicePose_T[index].mDeviceToAbsoluteTracking;
+                    Matrix4x4 T0 = GetMatrix4x4FromHmdMatrix(pose);
+                    Matrix4x4 T1 = deviceTruePos;;
+                    Matrix4x4 T0I;
+                    Matrix4x4 T1I;
+                    Matrix4x4.Invert(T0, out T0I);
 
-                if (!Matrix4x4.Invert(T0, out T0I))
-                {
-                    return false;
-                }
-                if (!Matrix4x4.Invert(T1, out T1I))
-                {
-                    return false;
-                }
-                GlobalTransformation = T0I * T1I;
-                WriteLine("GlobalTransformation has been set");
-                return true;
-            }
-            else
-            {
+                    Matrix4x4.Invert(T1, out T1I);
+                    var m = T0I * T1; 
+                    Vector3 pos = m.Translation;
+                    Vector3 rot = new Vector3(MathF.Atan2(m.M32, m.M33) * 180 / MathF.PI, MathF.Atan2(m.M21, m.M11) * 180 / MathF.PI, MathF.Atan2(-m.M31, MathF.Sqrt(m.M32 * m.M32 + m.M33 * m.M33)) * 180 / MathF.PI);
+                    //Console.WriteLine($"{v.X * 1000:+0000.00;-0000.00;+0000.00}, {v.Y * 1000:+0000.00;-0000.00;+0000.00}, {v.Z * 1000:+0000.00;-0000.00;+0000.00} [mm], yaw: {r.Y:+000.00;-000.00;+000.00}, pitch: {r.Z:+000.00;-000.00;+000.00} roll: {r.X:+000.00;-000.00;+000.00}");
 
-                WriteLine("GlobalTransformation fail");
+
+                    meanPos += pos;
+                    meanROT += rot;
+                }
+                else
+                {
+                    --iteratoinCount;
+                }
+
+            }
+            if (iteratoinCount == 0)
+            {
+                WriteLine("Global Transformaiton failed");
                 return false;
             }
+            meanPos = meanPos / (iteratoinCount);
+            meanROT = meanROT / (iteratoinCount);
+            {
+                Vector3 v = meanPos;
+                Vector3 r = meanROT;
+                Matrix4x4 Md = PosAndTrueYawPitchRoll(v, r);
+                GlobalTransformation = Md;
+
+            }
+            WriteLine($"Global Transformaiton success i count: {iteratoinCount}");
+            return true;
         }
 
         public Vector3 GetTransformedPose(string deviceSerial, int iterationNum = 10)
@@ -470,6 +522,8 @@ namespace Hurel.PG.Positioning
         {
             return GetTransformedMatirx(new List<TrackedDevice>() { device }, iterationNum)[0];
         }
+
+
         public List<Matrix4x4[]> GetTransformedMatirx(List<TrackedDevice> devices, int iterationNum = 10)
         {
             List<Matrix4x4[]> pos = new List<Matrix4x4[]>(devices.Count);
@@ -525,7 +579,8 @@ namespace Hurel.PG.Positioning
             return pos;
         }
 
-        private static Matrix<flo  GetMatrix4x4FromHmdMatrix(HmdMatrix34_t pose)
+
+        private static Matrix4x4 GetMatrix4x4FromHmdMatrix(HmdMatrix34_t pose)
         {
             Matrix4x4 m = Matrix4x4.Identity;
 
@@ -559,8 +614,35 @@ namespace Hurel.PG.Positioning
         {
             get { return TrackingRefIndex; }
         }
-                
-        
+
+        public static Matrix4x4 PosAndTrueYawPitchRoll(Vector3 p, Vector3 r)
+        {
+            float alpha = r.Y * MathF.PI / 180;
+            float cosA = MathF.Cos(alpha);
+            float sinA = MathF.Sin(alpha);
+            float beta = r.Z * MathF.PI / 180;
+            float cosB = MathF.Cos(beta);
+            float sinB = MathF.Sin(beta);
+            float gamma = r.X * MathF.PI / 180;
+            float cosC = MathF.Cos(gamma);
+            float sinC = MathF.Sin(gamma);
+            Matrix4x4 m = Matrix4x4.Identity;
+            m.M11 = cosA * cosB;
+            m.M12 = cosA * sinB * sinC - sinA * cosC;
+            m.M13 = cosA * sinB * cosC + sinA * sinC;
+            m.M41 = p.X;
+            m.M21 = sinA * cosB;
+            m.M22 = sinA * sinB * sinC + cosA * cosC;
+            m.M23 = sinA * sinB * cosC - cosA * sinC;
+            m.M42 = p.Y;
+            m.M31 = -sinB;
+            m.M32 = cosB * sinC;
+            m.M33 = cosB * cosC;
+            m.M43 = p.Z;
+
+            return m;
+        }
+
         public record TrackedDevice(uint Index, string Serial);       
 
         private static void WriteLine(string msg)
