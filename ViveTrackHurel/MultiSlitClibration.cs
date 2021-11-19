@@ -69,54 +69,54 @@ namespace Hurel.PG.Multislit
         private ViveTrackerApi.TrackedDevice Tracker3;
         private List<ViveTrackerApi.TrackedDevice> Trackers;
 
-        public (Vector3, Vector3) GetMultiSlitPosAndRot(int iterationCount = 10)
-        {
-            Matrix4x4[] mTs = GetMultiSlitPosMat(iterationCount);
+        //public (Vector3, Vector3) GetMultiSlitPosAndRot(int iterationCount = 10)
+        //{
+        //    Matrix4x4[] mTs = GetMultiSlitPosMat(iterationCount);
 
-            Vector3 meanPos = Vector3.Zero;
-            Vector3 meanROT = Vector3.Zero;
+        //    Vector3 meanPos = Vector3.Zero;
+        //    Vector3 meanROT = Vector3.Zero;
 
-            foreach (var m in mTs)
-            {
-                Vector3 pos = m.Translation;
-                Vector3 rot = new Vector3(MathF.Atan2(m.M32, m.M33) * 180 / MathF.PI, MathF.Atan2(m.M21, m.M11) * 180 / MathF.PI, MathF.Atan2(-m.M31, MathF.Sqrt(m.M32 * m.M32 + m.M33 * m.M33)) * 180 / MathF.PI);
-                meanPos += pos;
-                meanROT += rot;
-            }
-            return (meanPos / (3 * iterationCount), meanROT / (3 * iterationCount));
-        }
-        public Matrix4x4[] GetMultiSlitPosMat(int iterationCount = 10)
-        {
-            if (viveAPI.IsInitiated == false)
-            {
-                return new Matrix4x4[0];
-            }
-           float width = 0.246f;
-            float height = 0.12f;
-            Matrix4x4 OtoT1 = Matrix4x4.CreateWorld(new Vector3(0, -width / 2, 0), new Vector3(0, -1, 0), new Vector3(1, 0, 0));
-            Matrix4x4 OtoT2 = Matrix4x4.CreateWorld(new Vector3(0, 0, height), new Vector3(0, 0, 1), new Vector3(1, 0, 0));
-            Matrix4x4 OtoT3 = Matrix4x4.CreateWorld(new Vector3(0, width / 2, 0), new Vector3(0, 1, 0), new Vector3(1, 0, 0));
-
-
-            Matrix4x4 Tdevice1;
-            Matrix4x4 Tdevice2;
-            Matrix4x4 Tdevice3;
-            Matrix4x4.Invert(OtoT1, out Tdevice1);
-            Matrix4x4.Invert(OtoT2, out Tdevice2);
-            Matrix4x4.Invert(OtoT3, out Tdevice3);
-
-            List<Matrix4x4[]> mList = viveAPI.GetTransformedMatirx(Trackers, iterationCount);
-            Matrix4x4[] returnMList = new Matrix4x4[iterationCount * 3];
-            for (int i = 0; i < iterationCount; ++i)
-            {
-                returnMList[3 * i + 0] = Tdevice1 * mList[0][i];
-                returnMList[3 * i + 1] = Tdevice2 * mList[1][i];
-                returnMList[3 * i + 2] = Tdevice3 * mList[2][i];
-            }
+        //    foreach (var m in mTs)
+        //    {
+        //        Vector3 pos = m.Translation;
+        //        Vector3 rot = new Vector3(MathF.Atan2(m.M32, m.M33) * 180 / MathF.PI, MathF.Atan2(m.M21, m.M11) * 180 / MathF.PI, MathF.Atan2(-m.M31, MathF.Sqrt(m.M32 * m.M32 + m.M33 * m.M33)) * 180 / MathF.PI);
+        //        meanPos += pos;
+        //        meanROT += rot;
+        //    }
+        //    return (meanPos / (3 * iterationCount), meanROT / (3 * iterationCount));
+        //}
+        ////public Matrix4x4[] GetMultiSlitPosMat(int iterationCount = 10)
+        //{
+        //   // if (viveAPI.IsInitiated == false)
+        //   // {
+        //   //     return new Matrix4x4[0];
+        //   // }
+        //   //float width = 0.246f;
+        //   // float height = 0.12f;
+        //   // Matrix4x4 OtoT1 = Matrix4x4.CreateWorld(new Vector3(0, -width / 2, 0), new Vector3(0, -1, 0), new Vector3(1, 0, 0));
+        //   // Matrix4x4 OtoT2 = Matrix4x4.CreateWorld(new Vector3(0, 0, height), new Vector3(0, 0, 1), new Vector3(1, 0, 0));
+        //   // Matrix4x4 OtoT3 = Matrix4x4.CreateWorld(new Vector3(0, width / 2, 0), new Vector3(0, 1, 0), new Vector3(1, 0, 0));
 
 
-            return returnMList;
-        }
+        //   // Matrix4x4 Tdevice1;
+        //   // Matrix4x4 Tdevice2;
+        //   // Matrix4x4 Tdevice3;
+        //   // Matrix4x4.Invert(OtoT1, out Tdevice1);
+        //   // Matrix4x4.Invert(OtoT2, out Tdevice2);
+        //   // Matrix4x4.Invert(OtoT3, out Tdevice3);
+
+        //   // List<Matrix4x4[]> mList = viveAPI.GetTransformedMatrix(Trackers, iterationCount);
+        //   // Matrix4x4[] returnMList = new Matrix4x4[iterationCount * 3];
+        //   // for (int i = 0; i < iterationCount; ++i)
+        //   // {
+        //   //     returnMList[3 * i + 0] = Tdevice1 * mList[0][i];
+        //   //     returnMList[3 * i + 1] = Tdevice2 * mList[1][i];
+        //   //     returnMList[3 * i + 2] = Tdevice3 * mList[2][i];
+        //   // }
+
+
+        //    return returnMList;
+        //}
         private static void WriteLine(string msg)
         {
             try

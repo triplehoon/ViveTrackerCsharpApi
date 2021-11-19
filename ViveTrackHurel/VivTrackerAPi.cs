@@ -353,9 +353,6 @@ namespace Hurel.PG.Positioning
 
             return true;
         }
-
-
-
         public bool SetGlobalTransformation(TrackedDevice device, Matrix4x4 deviceTruePos)
         {
             TrackedDevicePose_t[] trackedDevicePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
@@ -388,10 +385,8 @@ namespace Hurel.PG.Positioning
                     Matrix4x4 T0 = GetMatrix4x4FromHmdMatrix(pose);
                     Matrix4x4 T1 = deviceTruePos;;
                     Matrix4x4 T0I;
-                    Matrix4x4 T1I;
                     Matrix4x4.Invert(T0, out T0I);
 
-                    Matrix4x4.Invert(T1, out T1I);
                     var m = T0I * T1; 
                     Vector3 pos = m.Translation;
                     Vector3 rot = new Vector3(MathF.Atan2(m.M32, m.M33) * 180 / MathF.PI, MathF.Atan2(m.M21, m.M11) * 180 / MathF.PI, MathF.Atan2(-m.M31, MathF.Sqrt(m.M32 * m.M32 + m.M33 * m.M33)) * 180 / MathF.PI);
@@ -418,13 +413,126 @@ namespace Hurel.PG.Positioning
                 Vector3 v = meanPos;
                 Vector3 r = meanROT;
                 Matrix4x4 Md = PosAndTrueYawPitchRoll(v, r);
+
+
+
                 GlobalTransformation = Md;
 
             }
             WriteLine($"Global Transformaiton success i count: {iteratoinCount}");
             return true;
         }
+        public bool SetGlobalTransformation(TrackedDevice deviceAtOrigin, TrackedDevice deviceAtX, TrackedDevice deviceAtY, TrackedDevice deviceAtZ)
+        {
 
+            TrackedDevicePose_t[] trackedDevicePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
+            TrackedDevicePose_t[] trackedGamePose_T = new TrackedDevicePose_t[OpenVR.k_unMaxTrackedDeviceCount];
+
+
+            OpenVR.Compositor.WaitGetPoses(trackedDevicePose_T, trackedGamePose_T);
+            Vector3 meanPosOrigin = Vector3.Zero;
+            Vector3 meanRotOrigin = Vector3.Zero;
+            Vector3 meanPosX = Vector3.Zero;
+            Vector3 meanPosY = Vector3.Zero;
+            Vector3 meanPosZ = Vector3.Zero;
+            Vector3 meanRotX = Vector3.Zero;
+            Vector3 meanRotY = Vector3.Zero;
+            Vector3 meanRotZ = Vector3.Zero;
+
+            int iteratoinCount = 300;
+            int trueIterationCount = iteratoinCount;
+            for (int i = 0; i < iteratoinCount; ++i)
+            {
+
+
+                OpenVR.Compositor.WaitGetPoses(trackedDevicePose_T, trackedGamePose_T);
+
+
+                uint indexOrigin = deviceAtOrigin.Index;
+                uint indexX = deviceAtX.Index;
+                uint indexY = deviceAtY.Index;
+                uint indexZ = deviceAtZ.Index;
+                bool isAllPosValid = trackedDevicePose_T[indexOrigin].bPoseIsValid && trackedDevicePose_T[indexX].bPoseIsValid && trackedDevicePose_T[indexY].bPoseIsValid && trackedDevicePose_T[indexZ].bPoseIsValid;
+                if (isAllPosValid)
+                {
+                    //update Pose
+                    HmdMatrix34_t poseOrigin = trackedDevicePose_T[indexOrigin].mDeviceToAbsoluteTracking;
+                    Matrix4x4 tPoseOrigin = GetMatrix4x4FromHmdMatrix(poseOrigin);
+                    HmdMatrix34_t poseX= trackedDevicePose_T[indexX].mDeviceToAbsoluteTracking;
+                    HmdMatrix34_t poseY= trackedDevicePose_T[indexY].mDeviceToAbsoluteTracking;
+                    HmdMatrix34_t poseZ= trackedDevicePose_T[indexZ].mDeviceToAbsoluteTracking;
+                    Matrix4x4 tPoseX = GetMatrix4x4FromHmdMatrix(poseX);
+                    Matrix4x4 tPoseY = GetMatrix4x4FromHmdMatrix(poseY);
+                    Matrix4x4 tPoseZ = GetMatrix4x4FromHmdMatrix(poseZ);
+
+                    meanPosOrigin += tPoseOrigin.Translation;
+                    //meanRotOrigin += GetRotation(tPoseOrigin);
+
+                    meanPosX += tPoseX.Translation;
+                    meanPosY += tPoseY.Translation;
+                    meanPosZ += tPoseZ.Translation;
+                    //meanRotX += GetRotation(tPoseX);
+                    //meanRotY += GetRotation(tPoseY);
+                    //meanRotZ += GetRotation(tPoseZ);
+                }
+                else
+                {
+                    --trueIterationCount;
+                }
+
+                if (i % (iteratoinCount / 10) == 0)
+                {
+                    WriteLine($"Global Transformation {(double)i / iteratoinCount * 100} %");
+                }
+            }
+
+            if (trueIterationCount == 0)
+            {
+                WriteLine("Global Transformaiton failed");
+                return false;
+            }
+            meanPosOrigin = meanPosOrigin / (trueIterationCount);
+            //meanRotOrigin = meanRotOrigin / (trueIterationCount);
+
+            meanPosX = meanPosX / trueIterationCount;
+            meanPosY = meanPosY / trueIterationCount;
+            meanPosZ = meanPosZ / trueIterationCount;
+
+            //meanRotX = meanRotX / trueIterationCount;
+            //meanRotY = meanRotY / trueIterationCount;
+            //meanRotZ = meanRotZ / trueIterationCount;
+            
+            {
+                Vector3 xAxis = meanPosX - meanPosOrigin;
+                Vector3 yAxis = meanPosY - meanPosOrigin;
+                Vector3 zAxis = meanPosZ - meanPosOrigin;
+                xAxis = xAxis / xAxis.Length();
+                yAxis = yAxis / yAxis.Length();
+                zAxis = zAxis / zAxis.Length();
+                Matrix4x4 refDevicePos = Matrix4x4.Identity;
+
+                refDevicePos.M11 = xAxis.X;
+                refDevicePos.M12 = xAxis.Y;
+                refDevicePos.M13 = xAxis.Z;
+                refDevicePos.M41 = meanPosOrigin.X;
+                refDevicePos.M21 = yAxis.X;
+                refDevicePos.M22 = yAxis.Y;
+                refDevicePos.M23 = yAxis.Z;
+                refDevicePos.M42 = meanPosOrigin.Y;
+                refDevicePos.M31 = zAxis.X;
+                refDevicePos.M32 = zAxis.Y;
+                refDevicePos.M33 = zAxis.Z;
+                refDevicePos.M43 = meanPosOrigin.Z;
+
+                Matrix4x4 refDevicePosInverse;
+                Matrix4x4.Invert(refDevicePos, out refDevicePosInverse);
+                GlobalTransformation = refDevicePosInverse;
+
+            }
+            WriteLine($"Global Transformaiton success i count: {trueIterationCount}");
+            return true;
+
+        }
         public Vector3 GetTransformedPose(string deviceSerial, int iterationNum = 10)
         {
             var device = TrackerIndex.Find(x => x.Serial == deviceSerial);
@@ -444,6 +552,8 @@ namespace Hurel.PG.Positioning
         {
             return GetTransformedPoses(new List<TrackedDevice>() { device }, iterationNum)[0];
         }
+
+
         public List<Vector3> GetTransformedPoses(List<TrackedDevice> devices, int iterationNum = 10)
         {
             List<Vector3> pos = new List<Vector3>(devices.Count);
@@ -503,35 +613,101 @@ namespace Hurel.PG.Positioning
             return pos;
         }
 
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="devices"></param>
+        /// <param name="iterationNum"></param>
+        /// <returns>
+        /// (List of devices and array of iterations)
+        /// </returns>
+        public (List<Vector3[]>, List<Vector3[]>) GetTransformedPosesAndRotations(List<TrackedDevice> devices, int iterationNum = 10)
+        {
+            List<Matrix4x4[]> mList = this.GetTransformedMatrixs(devices, iterationNum);
+            int deviceCount = devices.Count;
+
+            List<Vector3[]> returnPosList = new List<Vector3[]>();
+            List<Vector3[]> returnRotList = new List<Vector3[]>();
+
+            for (int i = 0; i < deviceCount; ++i)
+            {
+                returnPosList.Add(new Vector3[iterationNum]);
+                returnRotList.Add(new Vector3[iterationNum]);
+                for (int j = 0; j < iterationNum; ++j)
+                {
+                    returnPosList[i][j] = GetPosition(mList[i][j]);
+                    returnPosList[i][j] = GetRotation(mList[i][j]);
+                }
+            }
+
+            return (returnPosList, returnRotList);
+        }
+
+        public (List<Vector3>, List<Vector3>) GetTransformedMeanPosesAndRotations(List<TrackedDevice> devices, int iterationNum = 10)
+        {
+            (var posList, var rotList) = GetTransformedPosesAndRotations(devices, iterationNum);
+            int deviceCount = devices.Count;
+            List<Vector3> returnMeanPosList = new List<Vector3>();
+            List<Vector3> returnMeanRotList = new List<Vector3>();
+
+            for (int i = 0; i < deviceCount; ++i)
+            {
+                returnMeanPosList[i] = Vector3.Zero;
+                returnMeanRotList[i] = Vector3.Zero;
+                int trueIterationNum = iterationNum;
+                for (int j = 0; j < iterationNum; ++j)
+                {    
+                    Vector3 pos = posList[i][j];
+                    Vector3 rot = rotList[i][j];
+                    
+                    if (pos == Vector3.Zero && rot == Vector3.Zero)
+                    {
+                        trueIterationNum--;
+                        continue;
+                    }
+                    else
+                    {
+                        returnMeanPosList[i] += pos;
+                        returnMeanRotList[i] += rot;
+                    }
+                }
+                returnMeanPosList[i] = returnMeanPosList[i] / trueIterationNum;
+                returnMeanRotList[i] = returnMeanRotList[i] / trueIterationNum;
+            }
+
+            return (returnMeanPosList, returnMeanRotList);
+        }
+
         public Matrix4x4[] GetTransformedMatirxOrReturnNull(string deviceSerial, int iterationNum = 10)
         {
             var device = TrackerIndex.Find(x => x.Serial == deviceSerial);
             if (device.Serial == deviceSerial)
             {
-                return GetTransformedMatirx(device, iterationNum);
+                return GetTransformedMatrix(device, iterationNum);
             }
             device = TrackingRefIndex.Find(x => x.Serial == deviceSerial);
             if (device.Serial == deviceSerial)
             {
-                return GetTransformedMatirx(device, iterationNum);
+                return GetTransformedMatrix(device, iterationNum);
             }
 
             return null;
         }
-        public Matrix4x4[] GetTransformedMatirx(TrackedDevice device, int iterationNum = 10)
+        public Matrix4x4[] GetTransformedMatrix(TrackedDevice device, int iterationNum = 10)
         {
-            return GetTransformedMatirx(new List<TrackedDevice>() { device }, iterationNum)[0];
+            return GetTransformedMatrixs(new List<TrackedDevice>() { device }, iterationNum)[0];
         }
 
 
-        public List<Matrix4x4[]> GetTransformedMatirx(List<TrackedDevice> devices, int iterationNum = 10)
+        public List<Matrix4x4[]> GetTransformedMatrixs(List<TrackedDevice> devices, int iterationNum = 10) // iterationNum(전역변수) = 300번
         {
             List<Matrix4x4[]> pos = new List<Matrix4x4[]>(devices.Count);
             for (int i = 0; i < devices.Count; ++i)
             {
-                pos.Add(new Matrix4x4[iterationNum]);
+                pos.Add(new Matrix4x4[iterationNum]); // pos[devices.Count=3][iterationNum=300 -> 60]
             }
-
+            
             foreach (var dev in devices)
             {
                 bool isDevExist = false;
@@ -603,6 +779,33 @@ namespace Hurel.PG.Positioning
         {
             return m.Translation;
         }
+        public static Vector3 GetRotation(Matrix4x4 m)
+        {
+            //return new Vector3(MathF.Atan2(m.M32, m.M33) * 180 / MathF.PI, MathF.Atan2(m.M21, m.M11) * 180 / MathF.PI, MathF.Atan2(-m.M31, MathF.Sqrt(m.M32 * m.M32 + m.M33 * m.M33)) * 180 / MathF.PI);
+            float pitch = MathF.Atan2(m.M32, m.M33) * 180 / MathF.PI;
+            float yaw = MathF.Atan2(m.M21, m.M11) * 180 / MathF.PI;
+            float roll = MathF.Atan2(-m.M31, MathF.Sqrt(m.M32 * m.M32 + m.M33 * m.M33)) * 180 / MathF.PI;
+
+            //Turning rotation for vive tracker
+            if ((yaw > 180f) && (yaw <= 270f))
+            {
+                yaw = -(-yaw + 270) +180;
+            }
+            else
+            {
+                yaw = -(yaw + 180) +180;
+            }
+            roll = roll;
+            if (pitch < 0)
+            {
+                pitch = -(180 + pitch);
+            }
+            else
+            {
+                pitch = (180 - pitch);
+            }
+            return new Vector3(yaw, pitch, roll);
+        }
         private List<TrackedDevice> TrackerIndex = new List<TrackedDevice>();
         private List<TrackedDevice> TrackingRefIndex = new List<TrackedDevice>();
 
@@ -617,15 +820,16 @@ namespace Hurel.PG.Positioning
 
         public static Matrix4x4 PosAndTrueYawPitchRoll(Vector3 p, Vector3 r)
         {
-            float alpha = r.Y * MathF.PI / 180;
-            float cosA = MathF.Cos(alpha);
-            float sinA = MathF.Sin(alpha);
-            float beta = r.Z * MathF.PI / 180;
-            float cosB = MathF.Cos(beta);
-            float sinB = MathF.Sin(beta);
-            float gamma = r.X * MathF.PI / 180;
-            float cosC = MathF.Cos(gamma);
-            float sinC = MathF.Sin(gamma);
+            // A - theta, B - Psi, C - Pi
+            float alpha = r.Y * MathF.PI / 180; // alpha(Y): theta
+            float cosA = MathF.Cos(alpha);      // cos(theta)
+            float sinA = MathF.Sin(alpha);      // sin(theta)
+            float beta = r.Z * MathF.PI / 180;  // beta(Z): psi
+            float cosB = MathF.Cos(beta);       // cos(psi)
+            float sinB = MathF.Sin(beta);       // sin(psi)
+            float gamma = r.X * MathF.PI / 180; // gamma(X): pi
+            float cosC = MathF.Cos(gamma);      // cos(pi)
+            float sinC = MathF.Sin(gamma);      // sin(pi)
             Matrix4x4 m = Matrix4x4.Identity;
             m.M11 = cosA * cosB;
             m.M12 = cosA * sinB * sinC - sinA * cosC;
