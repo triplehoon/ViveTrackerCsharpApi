@@ -10,15 +10,7 @@ namespace Hurel.PG.Multislit
 {
     public class CalibrationWithViveTracker
     {
-        public struct TrackerSerials
-        {
-            public const string LHR_90B84552 = "LHR-90B84552";
-            public const string LHR_D31C35BD = "LHR-D31C35BD";
-            public const string LHR_3743F54D = "LHR-3743F54D";
-            //public const string LHR_90B84552 = "LHR-90B84552";
-        }
 
-        public readonly bool IsInitiated = false;
         /// <summary>
         ///           
         ///                  <FrontView>
@@ -38,85 +30,100 @@ namespace Hurel.PG.Multislit
         /// <param name="tracker3"></param>
         /// <param name="trackerRef"></param>
         /// <param name="trackerRefPose"></param>
-        public CalibrationWithViveTracker(string tracker1, string tracker2, string tracker3, string trackerRef, Matrix4x4 trackerRefPose)
+        public CalibrationWithViveTracker()
         {
-            viveAPI = new ViveTrackerApi();
-            if (!viveAPI.IsInitiated)
-            {
-                IsInitiated = false;
-                return;
-            }
+            ViveTrackerApi viveAPI = new ViveTrackerApi();
             var trackerList = viveAPI.GetTrackers;
-            var trackerRefDevice = trackerList.Find(x => x.Serial == trackerRef);
-            var test1 = trackerList.Find(x => x.Serial == tracker1);
-            var test2 = trackerList.Find(x => x.Serial == tracker2);
-            var test3 = trackerList.Find(x => x.Serial == tracker3);
-            if (test1 == null || test2 == null || trackerRefDevice == null || viveAPI.SetGlobalTransformation(trackerRefDevice, trackerRefPose))
+
+            ViveTrackerApi.TrackedDevice trackerIECY = trackerList.Find(x => x.Serial == "LHR-D31C35BD");
+            var trackerOrigin = trackerList.Find(x => x.Serial == "LHR-3743F54D");
+            var trackerIECX = trackerList.Find(x => x.Serial == "LHR-90B84552");
+            var trackerIECZ = trackerList.Find(x => x.Serial == "LHR-7E9098E0");
+            var trackerTestRef = trackerList.Find(x => x.Serial == "LHR-A07E549B");
+
+            var trackersIEC = new List<ViveTrackerApi.TrackedDevice> { trackerOrigin, trackerIECX, trackerIECY, trackerIECZ };
+
+            if (!viveAPI.SetGlobalTransformation(trackerOrigin, trackerIECX, trackerIECY, trackerIECZ))
             {
-                IsInitiated = false;
-                WriteLine("Can't find tracker or set global transformation");
+                WriteLine("Fail to set global transformation");
                 return;
             }
-            Tracker1 = test1;
-            Tracker2 = test2;
-            Tracker3 = test3;
-            Trackers = new List<ViveTrackerApi.TrackedDevice> { Tracker1, Tracker2, Tracker3 };
+
+
+            ViveTrackerApi.TrackedDevice trackerT1 = trackerList.Find(x => x.Serial == "LHR-FD4470E3");
+            ViveTrackerApi.TrackedDevice trackerT2 = trackerList.Find(x => x.Serial == "LHR-FEA44485");
+            ViveTrackerApi.TrackedDevice trackerT3 = trackerList.Find(x => x.Serial == "LHR-CA21B862");
+
+            float width = 0.135f;
+            float height = 0.121f;
+            float behind = 0.2425f;
+
+            Matrix4x4 Tdevice1ToTdevice2 = ViveTrackerApi.GetMatrixFromPosAndTrueYawPitchRoll(new VivePose(+width / 2, height, 0), new ViveYawPitchRoll(90, 0, 0));
+            Matrix4x4 Tdevice2ToTdevice2 = ViveTrackerApi.GetMatrixFromPosAndTrueYawPitchRoll(new VivePose(0, 0, 0), new ViveYawPitchRoll(0, 0, 0));
+            Matrix4x4 Tdevice3ToTdevice2 = ViveTrackerApi.GetMatrixFromPosAndTrueYawPitchRoll(new VivePose(-width / 2, height, 0), new ViveYawPitchRoll(-90, 0, 0));
+            Matrix4x4 Tdevice2ToMultslit = ViveTrackerApi.GetMatrixFromPosAndTrueYawPitchRoll(new VivePose(0, behind, -height), new ViveYawPitchRoll(-90, 0, 180));
+            List<ViveTrackerApi.TrackedDevice> multiSlitTracker = new List<ViveTrackerApi.TrackedDevice>() { trackerT1, trackerT2, trackerT3 };
+
+            int iterationCount = 1;
+
+            while (true)
+            {
+                List<Matrix4x4[]> mList = viveAPI.GetTransformedMatrixs(multiSlitTracker, iterationCount);
+                Matrix4x4[] returnMList = new Matrix4x4[iterationCount * 3];
+                for (int i = 0; i < iterationCount; ++i)
+                {
+                    returnMList[3 * i + 0] = mList[0][i];
+                    returnMList[3 * i + 1] = mList[1][i];
+                    returnMList[3 * i + 2] = mList[2][i];
+                }
+
+                Matrix4x4[] mTs = returnMList;
+
+                VivePose meanPos = VivePose.Zero();
+                ViveYawPitchRoll meanROT = ViveYawPitchRoll.Zero();
+
+                for (int i = 0; i < iterationCount * 3; ++i)
+                {
+                    Matrix4x4 m = mTs[i];
+                    VivePose pos = ViveTrackerApi.GetPosition(m);
+                    ViveYawPitchRoll rot = ViveTrackerApi.GetYawPitchRoll(m);
+    
+                    Console.WriteLine($"{pos.X * 1000:+0000.00;-0000.00;+0000.00}, {pos.Y * 1000:+0000.00;-0000.00;+0000.00}, {pos.Z * 1000:+0000.00;-0000.00;+0000.00} [mm], yaw: {rot.Yaw:+000.00;-000.00;+000.00}, pitch: {rot.Pitch:+000.00;-000.00;+000.00} roll: {rot.Roll:+000.00;-000.00;+000.00}");
+
+
+                    meanPos += pos;
+                    meanROT += rot;
+                }
+                meanPos = meanPos / iterationCount / 3;// / (3 * iterationCount);
+                meanROT = meanROT / iterationCount / 3;// / (3 * iterationCount);
+                {
+                    VivePose v = meanPos;
+                    ViveYawPitchRoll r = meanROT;
+                    Console.WriteLine($"Mean: {v.X * 1000:+0000.00;-0000.00;+0000.00}, {v.Y * 1000:+0000.00;-0000.00;+0000.00}, {v.Z * 1000:+0000.00;-0000.00;+0000.00} [mm], yaw: {r.Yaw:+000.00;-000.00;+000.00}, pitch: {r.Pitch:+000.00;-000.00;+000.00} roll: {r.Roll:+000.00;-000.00;+000.00}");
+
+                }
+
+                Console.WriteLine("Press enter to set current position as 0000000 And strat saving poses");
+                if (Console.KeyAvailable)
+                {
+                    ConsoleKeyInfo c = Console.ReadKey(true);
+
+                    if (c.Key == ConsoleKey.Enter)
+                    {
+                        break;
+                    }
+                }
+                Console.SetCursorPosition(0, Console.CursorTop - 5);
+            }
+
+
             IsInitiated = true;
         }
-        private ViveTrackerApi viveAPI;
-        private ViveTrackerApi.TrackedDevice Tracker1;
-        private ViveTrackerApi.TrackedDevice Tracker2;
-        private ViveTrackerApi.TrackedDevice Tracker3;
-        private List<ViveTrackerApi.TrackedDevice> Trackers;
 
-        //public (Vector3, Vector3) GetMultiSlitPosAndRot(int iterationCount = 10)
-        //{
-        //    Matrix4x4[] mTs = GetMultiSlitPosMat(iterationCount);
-
-        //    Vector3 meanPos = Vector3.Zero;
-        //    Vector3 meanROT = Vector3.Zero;
-
-        //    foreach (var m in mTs)
-        //    {
-        //        Vector3 pos = m.Translation;
-        //        Vector3 rot = new Vector3(MathF.Atan2(m.M32, m.M33) * 180 / MathF.PI, MathF.Atan2(m.M21, m.M11) * 180 / MathF.PI, MathF.Atan2(-m.M31, MathF.Sqrt(m.M32 * m.M32 + m.M33 * m.M33)) * 180 / MathF.PI);
-        //        meanPos += pos;
-        //        meanROT += rot;
-        //    }
-        //    return (meanPos / (3 * iterationCount), meanROT / (3 * iterationCount));
-        //}
-        ////public Matrix4x4[] GetMultiSlitPosMat(int iterationCount = 10)
-        //{
-        //   // if (viveAPI.IsInitiated == false)
-        //   // {
-        //   //     return new Matrix4x4[0];
-        //   // }
-        //   //float width = 0.246f;
-        //   // float height = 0.12f;
-        //   // Matrix4x4 OtoT1 = Matrix4x4.CreateWorld(new Vector3(0, -width / 2, 0), new Vector3(0, -1, 0), new Vector3(1, 0, 0));
-        //   // Matrix4x4 OtoT2 = Matrix4x4.CreateWorld(new Vector3(0, 0, height), new Vector3(0, 0, 1), new Vector3(1, 0, 0));
-        //   // Matrix4x4 OtoT3 = Matrix4x4.CreateWorld(new Vector3(0, width / 2, 0), new Vector3(0, 1, 0), new Vector3(1, 0, 0));
+        public readonly bool IsInitiated = false;
 
 
-        //   // Matrix4x4 Tdevice1;
-        //   // Matrix4x4 Tdevice2;
-        //   // Matrix4x4 Tdevice3;
-        //   // Matrix4x4.Invert(OtoT1, out Tdevice1);
-        //   // Matrix4x4.Invert(OtoT2, out Tdevice2);
-        //   // Matrix4x4.Invert(OtoT3, out Tdevice3);
 
-        //   // List<Matrix4x4[]> mList = viveAPI.GetTransformedMatrix(Trackers, iterationCount);
-        //   // Matrix4x4[] returnMList = new Matrix4x4[iterationCount * 3];
-        //   // for (int i = 0; i < iterationCount; ++i)
-        //   // {
-        //   //     returnMList[3 * i + 0] = Tdevice1 * mList[0][i];
-        //   //     returnMList[3 * i + 1] = Tdevice2 * mList[1][i];
-        //   //     returnMList[3 * i + 2] = Tdevice3 * mList[2][i];
-        //   // }
-
-
-        //    return returnMList;
-        //}
         private static void WriteLine(string msg)
         {
             try
